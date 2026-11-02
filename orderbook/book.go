@@ -113,3 +113,10 @@ func (s *bookSide) compareWorstFirst(a, b Price) int {
 	}
 	return cmp.Compare(b, a)
 }
+
+// removeBest drops the best level, once it is empty.
+func (s *bookSide) removeBest() {
+	last := len(s.prices) - 1
+	delete(s.levels, s.prices[last])
+	s.prices = s.prices[:last]
+}

@@ -29,3 +29,16 @@ func (l *level) pushBack(o *restingOrder) {
 	l.quantity += o.Quantity
 	l.count++
 }
+
+// popFront removes the oldest order, once it is completely filled.
+func (l *level) popFront() {
+	o := l.head
+	l.head = o.next
+	if l.head != nil {
+		l.head.prev = nil
+	} else {
+		l.tail = nil
+	}
+	o.next, o.level = nil, nil
+	l.count--
+}
