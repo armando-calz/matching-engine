@@ -69,3 +69,20 @@ func TestSide(t *testing.T) {
 		t.Fatal("String")
 	}
 }
+
+func TestMarketOrdersCrossAnyPrice(t *testing.T) {
+	for _, side := range []Side{Buy, Sell} {
+		o, err := NewMarketOrder(1, side, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range []Price{1, 100, 1 << 40} {
+			if !o.Crosses(p) {
+				t.Errorf("market %v does not cross %d", side, p)
+			}
+		}
+	}
+	if Limit.String() != "limit" || Market.String() != "market" || OrderType(9).String() != "OrderType(9)" {
+		t.Fatal("OrderType.String")
+	}
+}

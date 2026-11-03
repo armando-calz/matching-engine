@@ -34,7 +34,7 @@ The interesting parts:
 - [x] Core types: sides, prices in ticks, quantities in lots, orders
 - [x] Order book with price levels and FIFO queues
 - [x] Matching of limit orders with price-time priority, partial fills and trades
-- [ ] Market orders and cancellations
+- [x] Market orders and cancellations
 - [ ] Benchmarks and a design note on the data structures
 - [ ] Single-writer engine goroutine and an API to submit orders and stream trades
 - [ ] Live view of a real market: rebuild Bitso's public order book from its feed, detecting gaps by sequence number

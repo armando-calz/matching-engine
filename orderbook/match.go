@@ -15,18 +15,21 @@ type Trade struct {
 // Result reports what happened to a submitted order.
 type Result struct {
 	Trades []Trade
-	// Rested is the quantity left in the book after matching; zero if fully filled.
+	// Rested is the quantity of a limit order left in the book after matching.
 	Rested Quantity
+	// Dropped is the quantity of a market order the book could not fill.
+	Dropped Quantity
 }
 
-// Submit matches a limit order against the opposite side with price-time priority:
-// the best price first and, at the same price, the oldest order first. Whatever
-// cannot be filled at its limit price or better rests in the book.
+// Submit matches an order against the opposite side with price-time priority:
+// the best price first and, at the same price, the oldest order first. What a limit
+// order cannot fill at its price or better rests in the book; what a market order
+// cannot fill is dropped.
 //
 // Order ids must be unique among resting orders. An invalid or duplicate order is
 // rejected before anything changes.
 func (b *Book) Submit(o Order) (Result, error) {
-	if _, err := NewLimitOrder(o.ID, o.Side, o.Price, o.Quantity); err != nil {
+	if err := o.validate(); err != nil {
 		return Result{}, err
 	}
 	if _, ok := b.orders[o.ID]; ok {
@@ -51,16 +54,20 @@ func (b *Book) Submit(o Order) (Result, error) {
 			maker.Quantity -= q
 			l.quantity -= q
 			if maker.Quantity == 0 {
-				l.popFront()
+				l.remove(maker)
 				delete(b.orders, maker.ID)
 			}
 		}
 		if l.head == nil {
-			opposite.removeBest()
+			opposite.removeLevel(price)
 		}
 	}
 
-	if o.Quantity > 0 {
+	switch {
+	case o.Quantity == 0: // fully filled
+	case o.Type == Market:
+		res.Dropped = o.Quantity
+	default:
 		if err := b.rest(o); err != nil {
 			return Result{}, err // unreachable: the id was checked above
 		}

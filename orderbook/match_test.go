@@ -114,9 +114,9 @@ func TestSubmitRejectsBeforeChangingTheBook(t *testing.T) {
 	}
 }
 
-// TestSubmitAgreesWithReferenceModel replays random order flow through the book and
-// through a deliberately naive implementation of price-time priority, and requires
-// identical trades and resting orders after every order.
+// TestSubmitAgreesWithReferenceModel replays random order flow (limit and market
+// orders, and cancels) through the book and through a deliberately naive
+// implementation of price-time priority, and requires identical results.
 func TestSubmitAgreesWithReferenceModel(t *testing.T) {
 	for seed := range uint64(20) {
 		t.Run(fmt.Sprint("seed ", seed), func(t *testing.T) {
@@ -124,19 +124,32 @@ func TestSubmitAgreesWithReferenceModel(t *testing.T) {
 			b := NewBook()
 			ref := &referenceBook{}
 			for id := OrderID(1); id <= 500; id++ {
+				if r.IntN(100) < 15 { // cancel a random earlier order, resting or not
+					target := OrderID(1 + r.IntN(int(id)))
+					got, err := b.Cancel(target)
+					want, ok := ref.cancel(target)
+					if ok != (err == nil) || got != want {
+						t.Fatalf("Cancel(%d) = %+v, %v; reference %+v, %t", target, got, err, want, ok)
+					}
+					checkInvariants(t, b)
+					continue
+				}
 				side := Buy
 				if r.IntN(2) == 0 {
 					side = Sell
 				}
 				o := Order{ID: id, Side: side, Price: Price(95 + r.IntN(11)), Quantity: Quantity(1 + r.IntN(20))}
+				if r.IntN(100) < 10 {
+					o.Type, o.Price = Market, 0
+				}
 
 				res, err := b.Submit(o)
 				if err != nil {
 					t.Fatal(err)
 				}
-				wantTrades, wantRested := ref.submit(o)
-				if !slices.Equal(res.Trades, wantTrades) || res.Rested != wantRested {
-					t.Fatalf("order %+v: got %v rested %d, want %v rested %d", o, res.Trades, res.Rested, wantTrades, wantRested)
+				want := ref.submit(o)
+				if !slices.Equal(res.Trades, want.Trades) || res.Rested != want.Rested || res.Dropped != want.Dropped {
+					t.Fatalf("order %+v: got %+v, want %+v", o, res, want)
 				}
 				checkInvariants(t, b)
 			}
@@ -157,8 +170,8 @@ func TestSubmitAgreesWithReferenceModel(t *testing.T) {
 // them for every fill. Slow, but obviously correct.
 type referenceBook struct{ resting []Order }
 
-func (r *referenceBook) submit(o Order) ([]Trade, Quantity) {
-	var trades []Trade
+func (r *referenceBook) submit(o Order) Result {
+	var res Result
 	for o.Quantity > 0 {
 		best := -1
 		for i, m := range r.resting {
@@ -175,17 +188,32 @@ func (r *referenceBook) submit(o Order) ([]Trade, Quantity) {
 		}
 		m := &r.resting[best]
 		q := min(o.Quantity, m.Quantity)
-		trades = append(trades, Trade{o.ID, m.ID, o.Side, m.Price, q})
+		res.Trades = append(res.Trades, Trade{o.ID, m.ID, o.Side, m.Price, q})
 		o.Quantity -= q
 		m.Quantity -= q
 		if m.Quantity == 0 {
 			r.resting = slices.Delete(r.resting, best, best+1)
 		}
 	}
-	if o.Quantity > 0 {
+	switch {
+	case o.Quantity == 0:
+	case o.Type == Market:
+		res.Dropped = o.Quantity
+	default:
 		r.resting = append(r.resting, o)
+		res.Rested = o.Quantity
 	}
-	return trades, o.Quantity
+	return res
+}
+
+func (r *referenceBook) cancel(id OrderID) (Order, bool) {
+	for i, o := range r.resting {
+		if o.ID == id {
+			r.resting = slices.Delete(r.resting, i, i+1)
+			return o, true
+		}
+	}
+	return Order{}, false
 }
 
 func betterPrice(side Side, a, b Price) bool {

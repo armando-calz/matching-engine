@@ -30,15 +30,20 @@ func (l *level) pushBack(o *restingOrder) {
 	l.count++
 }
 
-// popFront removes the oldest order, once it is completely filled.
-func (l *level) popFront() {
-	o := l.head
-	l.head = o.next
-	if l.head != nil {
-		l.head.prev = nil
+// remove unlinks an order from the queue: the head once it is filled, or any order
+// when it is cancelled. Its remaining quantity leaves the level's total.
+func (l *level) remove(o *restingOrder) {
+	if o.prev != nil {
+		o.prev.next = o.next
 	} else {
-		l.tail = nil
+		l.head = o.next
 	}
-	o.next, o.level = nil, nil
+	if o.next != nil {
+		o.next.prev = o.prev
+	} else {
+		l.tail = o.prev
+	}
+	l.quantity -= o.Quantity
 	l.count--
+	o.prev, o.next, o.level = nil, nil, nil
 }

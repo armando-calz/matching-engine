@@ -7,8 +7,12 @@ import (
 	"slices"
 )
 
-// ErrDuplicateOrderID is returned when an order id is already resting in the book.
-var ErrDuplicateOrderID = errors.New("duplicate order id")
+var (
+	// ErrDuplicateOrderID is returned when an order id is already resting in the book.
+	ErrDuplicateOrderID = errors.New("duplicate order id")
+	// ErrUnknownOrder is returned when cancelling an order that is not resting in the book.
+	ErrUnknownOrder = errors.New("unknown order")
+)
 
 // Book is the limit order book of one instrument: bids and asks grouped in price levels,
 // each level a FIFO queue. It is not safe for concurrent use; one goroutine owns it.
@@ -66,6 +70,22 @@ func (b *Book) rest(o Order) error {
 	return nil
 }
 
+// Cancel removes a resting order and returns it with its unfilled quantity.
+// Orders that were filled, cancelled or never rested are unknown.
+func (b *Book) Cancel(id OrderID) (Order, error) {
+	ro, ok := b.orders[id]
+	if !ok {
+		return Order{}, fmt.Errorf("order %d: %w", id, ErrUnknownOrder)
+	}
+	l := ro.level
+	l.remove(ro)
+	delete(b.orders, id)
+	if l.head == nil {
+		b.side(ro.Side).removeLevel(l.price)
+	}
+	return ro.Order, nil
+}
+
 func (b *Book) side(s Side) *bookSide {
 	if s == Buy {
 		return &b.bids
@@ -114,9 +134,14 @@ func (s *bookSide) compareWorstFirst(a, b Price) int {
 	return cmp.Compare(b, a)
 }
 
-// removeBest drops the best level, once it is empty.
-func (s *bookSide) removeBest() {
-	last := len(s.prices) - 1
-	delete(s.levels, s.prices[last])
-	s.prices = s.prices[:last]
+// removeLevel drops the empty level at price p. Matching always removes the best
+// level, the last element, which needs no shifting.
+func (s *bookSide) removeLevel(p Price) {
+	delete(s.levels, p)
+	if last := len(s.prices) - 1; s.prices[last] == p {
+		s.prices = s.prices[:last]
+		return
+	}
+	i, _ := slices.BinarySearchFunc(s.prices, p, s.compareWorstFirst)
+	s.prices = slices.Delete(s.prices, i, i+1)
 }
