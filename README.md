@@ -26,7 +26,7 @@ The interesting parts:
 
 - **Price-time priority:** the best price is matched first and, at the same price, the order that arrived first. That is the fairness rule of every exchange.
 - **Exact arithmetic:** prices and quantities are integers (ticks and lots), never floating point.
-- **Latency:** the book's data structures are chosen for fast best-price lookups, inserts and cancels, and measured with Go benchmarks.
+- **Latency:** the book's data structures are chosen for fast best-price lookups, inserts and cancels, and measured with Go benchmarks: a cancel takes 35 ns and a realistic mixed flow about 130 ns per order on one core ([design note](docs/design.md)).
 - **One writer:** a single goroutine owns the book and receives commands over a channel. There are no locks on the hot path, and the order of events is deterministic.
 
 ## Roadmap
@@ -35,7 +35,7 @@ The interesting parts:
 - [x] Order book with price levels and FIFO queues
 - [x] Matching of limit orders with price-time priority, partial fills and trades
 - [x] Market orders and cancellations
-- [ ] Benchmarks and a design note on the data structures
+- [x] Benchmarks and a [design note](docs/design.md) on the data structures
 - [ ] Single-writer engine goroutine and an API to submit orders and stream trades
 - [ ] Live view of a real market: rebuild Bitso's public order book from its feed, detecting gaps by sequence number
 - [ ] Docker and a demo
@@ -45,7 +45,8 @@ Design decisions are recorded as ADRs in [`docs/adr`](docs/adr).
 ## Development
 
 ```bash
-go test -race ./...
+go test -race ./...                                  # tests
+go test -run '^$' -bench . -benchmem ./orderbook     # benchmarks
 ```
 
 ## License

@@ -21,3 +21,6 @@ jobs:
 
       - name: Test (with the race detector)
         run: go test -race -count=1 ./...
+
+      - name: Benchmarks compile and run (smoke test, not timed)
+        run: go test -run '^$' -bench . -benchtime 100x ./...
