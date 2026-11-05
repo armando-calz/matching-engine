@@ -87,16 +87,17 @@ type Order struct {
 // NewLimitOrder validates and returns a limit order.
 func NewLimitOrder(id OrderID, side Side, price Price, quantity Quantity) (Order, error) {
 	o := Order{ID: id, Type: Limit, Side: side, Price: price, Quantity: quantity}
-	return o, o.validate()
+	return o, o.Validate()
 }
 
 // NewMarketOrder validates and returns a market order.
 func NewMarketOrder(id OrderID, side Side, quantity Quantity) (Order, error) {
 	o := Order{ID: id, Type: Market, Side: side, Quantity: quantity}
-	return o, o.validate()
+	return o, o.Validate()
 }
 
-func (o Order) validate() error {
+// Validate checks the side, type, price and quantity. It does not check the id.
+func (o Order) Validate() error {
 	if o.Side != Buy && o.Side != Sell {
 		return fmt.Errorf("order %d: %w: %v", o.ID, ErrInvalidSide, o.Side)
 	}

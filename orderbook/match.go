@@ -29,7 +29,7 @@ type Result struct {
 // Order ids must be unique among resting orders. An invalid or duplicate order is
 // rejected before anything changes.
 func (b *Book) Submit(o Order) (Result, error) {
-	if err := o.validate(); err != nil {
+	if err := o.Validate(); err != nil {
 		return Result{}, err
 	}
 	if _, ok := b.orders[o.ID]; ok {

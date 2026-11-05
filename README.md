@@ -29,6 +29,23 @@ The interesting parts:
 - **Latency:** the book's data structures are chosen for fast best-price lookups, inserts and cancels, and measured with Go benchmarks: a cancel takes 35 ns and a realistic mixed flow about 130 ns per order on one core ([design note](docs/design.md)).
 - **One writer:** a single goroutine owns the book and receives commands over a channel. There are no locks on the hot path, and the order of events is deterministic.
 
+## Usage
+
+```go
+e := engine.Start(ctx, 1024) // one goroutine owns the book until ctx ends
+
+go func() {
+	for ev := range e.Events() { // Accepted, Traded, Rested, Dropped, Cancelled; Seq 1, 2, 3...
+		fmt.Println(ev.Seq, ev.Kind)
+	}
+}()
+
+r, err := e.Submit(ctx, orderbook.Order{Side: orderbook.Sell, Price: 1_250_500_00, Quantity: 10_000_000})
+// r.ID is assigned by the engine; r.Trades, r.Rested and r.Dropped say what happened
+```
+
+Any number of goroutines can call `Submit`, `Cancel` and `Depth`. The event stream has no gaps and is a complete journal: replaying it into a new book reproduces every trade ([ADR 0002](docs/adr/0002-engine-api-and-event-stream.md)).
+
 ## Roadmap
 
 - [x] Core types: sides, prices in ticks, quantities in lots, orders
@@ -36,7 +53,7 @@ The interesting parts:
 - [x] Matching of limit orders with price-time priority, partial fills and trades
 - [x] Market orders and cancellations
 - [x] Benchmarks and a [design note](docs/design.md) on the data structures
-- [ ] Single-writer engine goroutine and an API to submit orders and stream trades
+- [x] Single-writer engine goroutine and an API to submit orders and stream trades
 - [ ] Live view of a real market: rebuild Bitso's public order book from its feed, detecting gaps by sequence number
 - [ ] Docker and a demo
 
